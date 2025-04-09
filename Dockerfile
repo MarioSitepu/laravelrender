@@ -34,7 +34,8 @@ RUN chmod -R 775 /var/www/html/storage /var/www/html/bootstrap/cache
 # Jalankan post-install commands manual
 RUN composer run-script post-autoload-dump
 
-# Expose port 9000
-EXPOSE 9000
+# Expose port 8000 untuk Laravel serve
+EXPOSE 8000
 
-CMD ["php-fpm"]
+# Jalankan Laravel pakai built-in server
+CMD ["php", "artisan", "serve", "--host=0.0.0.0", "--port=8000"]
