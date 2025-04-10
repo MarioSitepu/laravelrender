@@ -1,41 +1,53 @@
-FROM php:8.3-fpm
+# ==============================================
+# STAGE 1: BUILD COMPOSER DEPENDENCIES
+# ==============================================
+FROM composer:2.6 AS builder
+WORKDIR /app
+COPY composer.json composer.lock ./
+RUN composer install \
+    --no-dev \
+    --no-interaction \
+    --optimize-autoloader \
+    --no-scripts
 
-# Install system dependencies
-RUN apt-get update && apt-get install -y \
-    git \
-    curl \
-    libpng-dev \
-    libonig-dev \
-    libxml2-dev \
-    libzip-dev \
-    zip \
-    unzip \
-    && docker-php-ext-install pdo pdo_mysql mbstring exif pcntl bcmath gd zip
-
-# Install Composer v2
-COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
-
-# Buat folder aplikasi
-RUN mkdir -p /var/www/html
-
-# Set working directory
+# ==============================================
+# STAGE 2: PRODUCTION RUNTIME (PHP 8.3)
+# ==============================================
+FROM php:8.3-apache
 WORKDIR /var/www/html
 
-# Copy SELURUH aplikasi (termasuk file artisan)
+# Copy application files
+COPY --from=builder /app/vendor ./vendor
 COPY . .
 
-# Install dependencies (skip platform reqs dan post-scripts)
-RUN composer install --no-dev --no-interaction --optimize-autoloader --ignore-platform-reqs --no-scripts
+# Apache configuration
+COPY .docker/apache.conf /etc/apache2/sites-available/000-default.conf
 
-# Set permission
-RUN chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache
-RUN chmod -R 775 /var/www/html/storage /var/www/html/bootstrap/cache
+# Install system dependencies
+RUN apt-get update -y && \
+    apt-get install -y \
+    libpq-dev \
+    libzip-dev \
+    zip \
+    unzip && \
+    docker-php-ext-install pdo pdo_pgsql zip && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
 
-# Jalankan post-install commands manual
-RUN composer run-script post-autoload-dump
+# Set permissions
+RUN chown -R www-data:www-data storage bootstrap/cache && \
+    chmod -R 775 storage bootstrap/cache
 
-# Expose port 8000 untuk Laravel serve
-EXPOSE 8000
+# Configure Apache
+RUN a2enmod rewrite && \
+    a2enmod headers && \
+    service apache2 restart
 
-# Jalankan Laravel pakai built-in server
-CMD ["php", "artisan", "serve", "--host=0.0.0.0", "--port=8000"]
+# Run Laravel optimization
+RUN php artisan config:clear && \
+    php artisan view:clear && \
+    php artisan route:clear && \
+    php artisan optimize
+
+EXPOSE 80
+CMD ["apache2-foreground"]

@@ -1,31 +1,12 @@
-databases:
-  - name: laravel_postgres
-    databaseName: laravel_prod
-    user: laravel_user
-    plan: free
-
 services:
   - type: web
-    name: laravel-app
-    runtime: php
-    plan: free
-    region: singapore
-    buildCommand: |
-      composer install --no-dev --optimize-autoloader
-      cp .env.example .env
-      php artisan key:generate
-      php artisan migrate --force
-      php artisan db:seed --force
-      php artisan storage:link
-      php artisan optimize
-    startCommand: php artisan serve --host=0.0.0.0 --port=8000
+    name: laravel-docker
+    dockerfilePath: ./Dockerfile
     envVars:
       - key: APP_ENV
         value: production
       - key: APP_DEBUG
         value: false
-      - key: APP_URL
-        value: https://${RENDER_SERVICE_NAME}.onrender.com
       - key: DB_CONNECTION
         value: pgsql
       - key: DB_HOST
@@ -34,15 +15,6 @@ services:
           property: host
       - key: DB_PORT
         value: 5432
-      - key: DB_DATABASE
-        fromDatabase:
-          name: laravel_postgres
-          property: database
-      - key: DB_USERNAME
-        fromDatabase:
-          name: laravel_postgres
-          property: user
-      - key: DB_PASSWORD
-        fromDatabase:
-          name: laravel_postgres
-          property: password
+    databases:
+      - name: laravel_postgres
+        plan: free
